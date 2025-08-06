@@ -9,13 +9,17 @@
    [notif-test.repository.memory :as mem]
    [notif-test.repository.protocols :as p]
    [notif-test.service.notification-service :as svc]
+   [notif-test.notification.channels :as ch]
    [ring.util.response :as resp]))
 
 ;; Inversion of dependencies: wire repositories here
 (defonce users (mem/users-repo))
 (defonce messages (mem/messages-repo))
 (defonce logs (mem/logs-repo))
-(defonce deps {:users users :messages messages :logs logs})
+(defonce notifiers {:sms (ch/->SMSNotifier)
+                    :email (ch/->EmailNotifier)
+                    :push (ch/->PushNotifier)})
+(defonce deps {:users users :messages messages :logs logs :notifiers notifiers})
 
 (defn layout [title & body]
   (page/html5
@@ -63,22 +67,22 @@
         (ring/router
          [["/" {:get (fn [_] (resp/response (home-page)))}]
           ["/api/logs" {:get (fn [_]
-                                (json-response (map (fn [l]
-                                                      (-> l
-                                                          (update :timestamp str)
-                                                          (set/rename-keys {:message-id :message_id
-                                                                            :notification-status :notification_status})))
-                                                    (p/all-logs logs))))}]
+                               (json-response (map (fn [l]
+                                                     (-> l
+                                                         (update :timestamp str)
+                                                         (set/rename-keys {:message-id :message_id
+                                                                           :notification-status :notification_status})))
+                                                   (p/all-logs logs))))}]
           ["/api/messages" {:post (fn [{:keys [body]}]
-                                     (try
-                                       (let [data (json/decode (slurp body) keyword)
-                                             {:keys [category messageBody]} data
-                                             category-kw (keyword (str/lower-case (name category)))
-                                             result (svc/submit-message! deps {:category category-kw :message-body messageBody})]
-                                         (json-response result))
-                                       (catch Exception e
-                                         (-> (resp/response (str (.getMessage e)))
-                                             (resp/status 400)))))}]])]
+                                    (try
+                                      (let [data (json/decode (slurp body) keyword)
+                                            {:keys [category messageBody]} data
+                                            category-kw (keyword (str/lower-case (name category)))
+                                            result (svc/submit-message! deps {:category category-kw :message-body messageBody})]
+                                        (json-response result))
+                                      (catch Exception e
+                                        (-> (resp/response (str (.getMessage e)))
+                                            (resp/status 400)))))}]])]
     (ring/ring-handler router
                        (constantly (-> (resp/response "Not found") (resp/status 404))))))
 

@@ -24,9 +24,9 @@
 
 (defn submit-message!
   "Validate and persist message, then dispatch to eligible users' preferred channels.
-   deps expects keys {:users :messages :logs} implementing repository protocols.
+   deps expects keys {:users :messages :logs :notifiers} implementing repository protocols and a notifier registry map.
    Returns {:message <saved-message> :results [ { :user-id .. :channel .. :status .. :log-id .. } ... ]}."
-  [{:keys [users messages logs]} {:keys [category message-body] :as req}]
+  [{:keys [users messages logs notifiers]} {:keys [category message-body] :as req}]
   ;; Validate input DTO
   (when-not (contains? m/categories category)
     (throw (ex-info "Invalid category" {:category category :allowed m/categories})))
@@ -40,10 +40,15 @@
         results (transient [])]
     (doseq [user subs
             channel (:preferred-channels user)]
-      (let [notifier (ch/notifier-for channel)
-            send-resp (try-send notifier user message)
+      (let [; Prefer provided notifiers registry; otherwise fall back to channel lookup
+            notifier (or (get notifiers channel)
+                         (ch/notifier-for channel))
+            ; Do NOT throw on unsupported channels; record a failed attempt instead so processing continues
+            send-resp (if (nil? notifier)
+                        {:status :failed :info "unsupported-channel" :error "Unsupported channel"}
+                        (try-send notifier user message))
             status (:status send-resp)
-            log (m/->NotificationLog {:id (repo/next-id messages) ; use messages' seq for simplicity
+            log (m/->NotificationLog {:log-id (java.util.UUID/randomUUID)
                                       :message-id (:message-id message)
                                       :category category
                                       :channel channel

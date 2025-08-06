@@ -4,8 +4,7 @@
             [notif-test.repository.protocols :as p]
             [notif-test.service.notification-service :as svc]
             [notif-test.notification.protocols :as proto]
-            [notif-test.notification.channels :as ch]
-            [notif-test.domain.models :as m]))
+            [notif-test.notification.channels :as ch]))
 
 (defn fresh-deps []
   {:users (mem/users-repo)
@@ -28,7 +27,6 @@
 
 (deftest filter-by-subscription
   (let [deps (fresh-deps)
-        res (svc/submit-message! deps {:category :movies :message-body "Movie!"})
         targeted-users (->> (p/all-logs (:logs deps)) (map (comp :id :user)) set)]
     ;; Seed users subscribed to movies: Bob(id 2), Carol(id 3)
     (is (= targeted-users #{2 3}))))

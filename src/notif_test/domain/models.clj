@@ -13,6 +13,7 @@
 
 ;; Specs
 (s/def ::id pos-int?)
+(s/def ::log-id uuid?)
 (s/def ::name non-blank-string?)
 (s/def ::email (s/and non-blank-string? #(str/includes? % "@")))
 (s/def ::phone (s/and non-blank-string? #(re-matches #"[+]?\d[\d -]{6,}" %)))
@@ -37,7 +38,7 @@
 (s/def ::error (s/nilable non-blank-string?))
 
 (s/def ::notification-log
-  (s/keys :req-un [::id ::message-id ::category ::channel ::user ::timestamp ::notification-status]
+  (s/keys :req-un [::log-id ::message-id ::category ::channel ::user ::timestamp ::notification-status]
           :opt-un [::error]))
 
 ;; Constructors with validation
