@@ -15,6 +15,14 @@ Install dependencies
 
 - lein deps
 
+Run migrations
+
+- lein migratus migrate
+
+Run seed
+
+- lein run -m notif-test.db.seed
+
 Start the web server
 Option 1: From a REPL (recommended for dev)
 
