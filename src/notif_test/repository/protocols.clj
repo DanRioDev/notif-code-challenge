@@ -7,7 +7,6 @@
   (users-subscribed-to [this category]))
 
 (defprotocol MessageRepository
-  (next-id [this])
   (save-message [this message])
   (all-messages [this]))
 

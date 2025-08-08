@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT UNIQUE,
   phone TEXT,
-  subscribed_categories TEXT[] NOT NULL DEFAULT '{}',
-  preferred_channels TEXT[] NOT NULL DEFAULT '{}'
+  subscribed JSONB NOT NULL DEFAULT '{}',
+  preferred_channels JSONB NOT NULL DEFAULT '{}'
 );
 --;;
 CREATE TABLE IF NOT EXISTS messages (

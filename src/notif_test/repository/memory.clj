@@ -1,5 +1,6 @@
 (ns notif-test.repository.memory
-  "In-memory repository implementations and seed data."
+  "In-memory repository implementations and seed data.
+   Once used for mocking now used for testing."
   (:require [notif-test.repository.protocols :as p]
             [notif-test.domain.models :as m]
             [clojure.set :as set]))
@@ -41,12 +42,8 @@
   ([users]
    (->InMemoryUsers (atom (-> users ensure-user-uuids validate-users)))))
 
-(defrecord InMemoryMessages [!next-id !messages]
+(defrecord InMemoryMessages [!messages]
   p/MessageRepository
-  (next-id [_]
-    (let [id @!next-id]
-      (swap! !next-id inc)
-      id))
   (save-message [_ {:keys [message-id message-category message-body]}]
     (let [id (or message-id (java.util.UUID/randomUUID))
           final {:message-id id
@@ -57,7 +54,7 @@
   (all-messages [_] @!messages))
 
 (defn messages-repo []
-  (->InMemoryMessages (atom 1) (atom [])))
+  (->InMemoryMessages (atom [])))
 
 (defrecord InMemoryLogs [!logs]
   p/NotificationLogRepository

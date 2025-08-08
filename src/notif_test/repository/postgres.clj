@@ -2,7 +2,8 @@
   "Postgres-backed repository implementations using next.jdbc."
   (:require [next.jdbc :as jdbc]
             [next.jdbc.sql :as sql]
-            [notif-test.repository.protocols :as repo]))
+            [notif-test.repository.protocols :as repo]
+            [cheshire.core :as cheshire]))
 
 ;; Helpers
 (defn- ->kw
@@ -10,36 +11,37 @@
   [x]
   (when x (keyword x)))
 
-(defn- ->vec
-  "Ensure value is a Clojure vector (for Postgres arrays)."
-  [x]
-  (cond
-    (nil? x) []
-    (vector? x) x
-    (sequential? x) (vec x)
-    :else [x]))
-
 (defn- to-kw-vec
-  "Coerce a DB value (possibly array) into a vector of keywords."
+  "Coerce a Postgres JSONB column (PGobject/String) into a Clojure vector of keywords."
   [xs]
-  (->> (->vec xs)
-       (map (comp keyword str))
-       (vec)))
+  (let [json-str (cond
+                   (instance? org.postgresql.util.PGobject xs) (.getValue xs)
+                   (string? xs) xs
+                   (sequential? xs) xs
+                   :else nil)]
+    (if (or (nil? json-str) (sequential? json-str))
+      (mapv keyword (or json-str []))
+      (->> (cheshire.core/parse-string json-str)
+           (map keyword)
+           (vec)))))
+
+(to-kw-vec ["sports", "movies"])
 
 (defn- row->user
   "Map a SQL row into the domain user shape."
-  [{:keys [id name email phone subscribed_categories preferred_channels] :as _row}]
+  [{:keys [id name email phone subscribed preferred_channels] :as _row}]
   {:id id
    :name name
    :email email
    :phone phone
-   :subscribed (to-kw-vec subscribed_categories)
+   :subscribed (to-kw-vec subscribed)
    :preferred-channels (to-kw-vec preferred_channels)})
 
 (defn- row->message
   "Map a SQL row into the domain message shape."
-  [{:keys [id category content] :as _row}]
+  [{:keys [id user-id category content] :as _row}]
   {:message-id id
+   :user-id user-id
    :message-category (->kw category)
    :message-body content})
 
@@ -47,13 +49,13 @@
 (defrecord PostgresUsers [ds]
   repo/UserRepository
   (all-users [_]
-    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users ORDER BY id ASC"])]
+    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed, preferred_channels FROM users ORDER BY id ASC"])]
       (map row->user rows)))
   (find-user [_ id]
-    (when-let [row (jdbc/execute-one! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE id = ?" id])]
+    (when-let [row (jdbc/execute-one! ds ["SELECT id, name, email, phone, subscribed, preferred_channels FROM users WHERE id = ?" id])]
       (row->user row)))
   (users-subscribed-to [_ category]
-    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE subscribed_categories @> ARRAY[?]::text[]" (name category)])]
+    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed, preferred_channels FROM users WHERE subscribed ?? ?" (name category)])]
       (map row->user rows))))
 
 (defn users-repo [ds]
@@ -62,12 +64,11 @@
 ;; Messages Repository
 (defrecord PostgresMessages [ds]
   repo/MessageRepository
-  (next-id [_]
-    (-> (jdbc/execute-one! ds ["SELECT nextval('messages_id_seq') AS id"]) :id))
-  (save-message [_ {:keys [message-id message-category message-body]}]
+  (save-message [_ {:keys [user-id message-id message-category message-body]}]
     (let [row (cond-> {:category (name message-category)
                        :content message-body}
-                message-id (assoc :id message-id))
+                message-id (assoc :id message-id)
+                user-id (assoc :id user-id))
           inserted (sql/insert! ds :messages row {:return-keys true})]
       ;; Return the domain-shaped message with the generated UUID
       (row->message inserted)))

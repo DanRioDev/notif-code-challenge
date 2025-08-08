@@ -3,29 +3,25 @@
   This is idempotent and safe to run multiple times."
   (:require [next.jdbc :as jdbc]
             [next.jdbc.sql :as sql]
-            [notif-test.config :as config]))
+            [notif-test.config :as config]
+            [cheshire.core :as json])
+  (:import (org.postgresql.util PGobject)))
 
-(defn- pg-array
-  "Create a java.sql.Array of the given SQL element type (e.g., text) from a Clojure seq.
-  If `handle` is a java.sql.Connection (e.g., a tx from with-transaction), use it directly;
-  otherwise treat it as a DataSource and open a short-lived connection."
-  [handle sql-type xs]
-  (if (instance? java.sql.Connection handle)
-    (.createArrayOf ^java.sql.Connection handle sql-type (into-array String (map str xs)))
-    (with-open [^java.sql.Connection c (jdbc/get-connection handle)]
-      (.createArrayOf c sql-type (into-array String (map str xs))))))
+
+(defn to-jsonb [data]
+  (doto (PGobject.)
+    (.setType "jsonb")
+    (.setValue (json/generate-string data))))
 
 (defn ensure-user!
-  [handle {:keys [name email phone subscribed-categories preferred-channels]}]
-  (let [subscribed-arr (pg-array handle "text" (or subscribed-categories []))
-        preferred-arr  (pg-array handle "text" (or preferred-channels []))]
-    (sql/insert! handle :users
-                 {:name name
-                  :email email
-                  :phone phone
-                  :subscribed_categories subscribed-arr
-                  :preferred_channels preferred-arr}
-                 {:return-keys true})))
+  [handle {:keys [name email phone subscribed preferred-channels]}]
+  (sql/insert! handle :users
+               {:name name
+                :email email
+                :phone phone
+                :subscribed (to-jsonb (or subscribed []))
+                :preferred_channels (to-jsonb (or preferred-channels []))}
+               {:return-keys true}))
 
 (defn seed!
   "Execute seed operations inside a transaction."
@@ -35,12 +31,20 @@
     (jdbc/with-transaction [tx ds]
       (doseq [u [{:name "Alice"
                   :email "alice@example.com"
-                  :subscribed-categories ["sports"]
+                  :subscribed ["sports"]
                   :preferred-channels ["email"]}
                  {:name "Bob"
                   :email "bob@example.com"
-                  :subscribed-categories ["finance" "movies"]
-                  :preferred-channels ["sms" "email"]}]]
+                  :subscribed ["finance" "movies"]
+                  :preferred-channels ["sms" "email"]}
+                 {:name "Carol"
+                  :email "carol@example.com" :phone "+15550000003"
+                  :subscribed ["sports" "movies"]
+                  :preferred-channels ["email" "push"]}
+                 {:name "Dave"
+                  :email "dave@example.com" :phone "+15550000004"
+                  :subscribed ["finance"]
+                  :preferred-channels ["sms"]}]]
         (ensure-user! tx u)))))
 
 (defn -main
