@@ -82,11 +82,10 @@
 ;; Notification Logs Repository
 (defrecord PostgresLogs [ds]
   repo/NotificationLogRepository
-  (append-log [_ {:keys [message-id channel notification-status error] :as _domain-log}]
-    ;; Map domain-shaped log into persistence row. Category/user/timestamp are not stored in this table.
-    (let [row {:message_id message-id
+  (append-log [_ {:keys [message_id channel status error]}]
+    (let [row {:message_id message_id
                :channel (name channel)
-               :status (name notification-status)
+               :status (name status)
                :error error}]
       (sql/insert! ds :notification_logs row {:return-keys true})))
   (all-logs [_]

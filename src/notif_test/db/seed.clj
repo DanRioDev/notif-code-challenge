@@ -35,12 +35,10 @@
     (jdbc/with-transaction [tx ds]
       (doseq [u [{:name "Alice"
                   :email "alice@example.com"
-                  :phone "+15550000001"
                   :subscribed-categories ["sports"]
                   :preferred-channels ["email"]}
                  {:name "Bob"
                   :email "bob@example.com"
-                  :phone "+15550000002"
                   :subscribed-categories ["finance" "movies"]
                   :preferred-channels ["sms" "email"]}]]
         (ensure-user! tx u)))))

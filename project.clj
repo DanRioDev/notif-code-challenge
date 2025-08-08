@@ -4,7 +4,6 @@
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.11.1"]
-                 [org.clojure/core.async "1.6.681"]
                  [ring/ring-core "1.12.2"]
                  [ring/ring-jetty-adapter "1.12.2"]
                  [metosin/reitit "0.9.1"]
@@ -22,8 +21,7 @@
              :migration-dir "resources/migrations"
              :db {:connection-uri ~(or (System/getenv "DATABASE_URL")
                                        "jdbc:postgresql://localhost:5432/notif_test?user=notif&password=secret")}}
-  :profiles {:dev {:dependencies [[cider/cider-nrepl "0.42.1"]]}
-             :test {:dependencies [[ring/ring-mock "0.4.0"]]}}
+  :profiles {:dev {:dependencies [[cider/cider-nrepl "0.42.1"]]}}
   :aliases {"db:seed"  ["run" "-m" "notif-test.db.seed"]
             "db:clean" ["run" "-m" "notif-test.db.clean"]}
   :repl-options {:init-ns notif-test.core})
