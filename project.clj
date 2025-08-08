@@ -22,8 +22,7 @@
              :db {:connection-uri ~(or (System/getenv "DATABASE_URL")
                                        "jdbc:postgresql://localhost:5432/notif_test?user=notif&password=secret")}}
   :profiles {:dev {:dependencies [[cider/cider-nrepl "0.42.1"]]}}
-  :aliases {"db:seed"  ["run" "-m" "notif-test.db.seed"]
-            "db:clean" ["run" "-m" "notif-test.db.clean"]}
+  :aliases {"db:seed"  ["run" "-m" "notif-test.db.seed"]}
   :repl-options {:init-ns notif-test.core})
 
 
