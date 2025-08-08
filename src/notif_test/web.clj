@@ -57,8 +57,7 @@
     (when (= flag "true")
       (disp/start-dispatcher {:get-deps #(deref !deps)
                               :workers (or workers 2)
-                              :buffer (or buffer 100)})))
-  )
+                              :buffer (or buffer 100)}))))
 
 (defn- handle-post-message [req]
   (try
