@@ -64,7 +64,6 @@ Notes
 - shadow-cljs.edn config includes :dev-http {3001 {:root "resources/public"}}.
 - You can open http://localhost:3001/index.html for static hosting, but API calls to /api will target 3001. Prefer using the backend at 3000 for full functionality.
 
-
 Key entry points
 
 - Ring handler: notif-test.web/app
@@ -77,18 +76,3 @@ API usage
   JSON body: {"category":"sports|finance|movies","messageBody":"your text"}
 - GET /api/logs
   Returns notification logs (newest first).
-
-## License
-
-Copyright © 2025 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
