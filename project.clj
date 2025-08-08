@@ -14,9 +14,7 @@
                  [org.postgresql/postgresql "42.7.4"]
                  [com.zaxxer/HikariCP "5.1.0"]
                  ;; Migrations
-                 [migratus "1.5.9"]
-                 ;; Shadow CLJS
-                 [thheller/shadow-cljs "2.26.2"]]
+                 [migratus "1.5.9"]]
   :plugins [[migratus-lein "0.7.3"]
             [lein-environ/lein-environ "1.2.0"]]
   :migratus {:store :database

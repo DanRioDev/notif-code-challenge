@@ -19,28 +19,42 @@
     (sequential? x) (vec x)
     :else [x]))
 
+(defn- to-kw-vec
+  "Coerce a DB value (possibly array) into a vector of keywords."
+  [xs]
+  (->> (->vec xs)
+       (map (comp keyword str))
+       (vec)))
+
+(defn- row->user
+  "Map a SQL row into the domain user shape."
+  [{:keys [id name email phone subscribed_categories preferred_channels] :as _row}]
+  {:id id
+   :name name
+   :email email
+   :phone phone
+   :subscribed (to-kw-vec subscribed_categories)
+   :preferred-channels (to-kw-vec preferred_channels)})
+
+(defn- row->message
+  "Map a SQL row into the domain message shape."
+  [{:keys [id category content] :as _row}]
+  {:message-id id
+   :message-category (->kw category)
+   :message-body content})
+
 ;; Users Repository
 (defrecord PostgresUsers [ds]
   repo/UserRepository
   (all-users [_]
     (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users ORDER BY id ASC"])]
-      (map (fn [{:keys [subscribed_categories preferred_channels] :as r}]
-             (-> r
-                 (assoc :subscribed_categories (->vec subscribed_categories))
-                 (assoc :preferred_channels (->vec preferred_channels))))
-           rows)))
+      (map row->user rows)))
   (find-user [_ id]
     (when-let [row (jdbc/execute-one! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE id = ?" id])]
-      (-> row
-          (update :subscribed_categories ->vec)
-          (update :preferred_channels ->vec))))
+      (row->user row)))
   (users-subscribed-to [_ category]
-    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE ? = ANY(subscribed_categories)" category])]
-      (map (fn [{:keys [subscribed_categories preferred_channels] :as r}]
-             (-> r
-                 (assoc :subscribed_categories (->vec subscribed_categories))
-                 (assoc :preferred_channels (->vec preferred_channels))))
-           rows))))
+    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE ? = ANY(subscribed_categories)" (name category)])]
+      (map row->user rows))))
 
 (defn users-repo [ds]
   (->PostgresUsers ds))
@@ -50,12 +64,17 @@
   repo/MessageRepository
   (next-id [_]
     (-> (jdbc/execute-one! ds ["SELECT nextval('messages_id_seq') AS id"]) :id))
-  (save-message [_ {:keys [id user_id category content]}]
-    (let [row (cond-> {:user_id user_id :category category :content content}
-                id (assoc :id id))]
-      (sql/insert! ds :messages row {:return-keys true})))
+  (save-message [_ {:keys [message-id message-category message-body] :as message}]
+    (let [row (cond-> {:category (name message-category)
+                       :content message-body}
+                message-id (assoc :id message-id))]
+      (sql/insert! ds :messages row {:return-keys true})
+      ;; Return the domain-shaped message we were asked to save
+      message))
   (all-messages [_]
-    (jdbc/execute! ds ["SELECT id, user_id, category, content, created_at FROM messages ORDER BY id DESC"])))
+    (->> (jdbc/execute! ds ["SELECT id, category, content FROM messages ORDER BY id DESC"])
+         (map row->message)
+         (vec))))
 
 (defn messages-repo [ds]
   (->PostgresMessages ds))

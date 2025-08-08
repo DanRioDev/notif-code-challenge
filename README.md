@@ -2,48 +2,68 @@
 
 A cool code challenge
 
+## Prerequisites
+
+- Java (JDK 11+) and Leiningen
+- Node.js and npm
+- Docker (for PostgreSQL) or local PostgreSQL 15+
+
 ## Usage
 
-To run this project locally and execute tests, follow these steps.
+Quick start (in two different terminals)
 
-Prerequisites
+### Terminal 1 – Database + Backend (Postgres default)
 
-- Java (JDK 8+)
-- Leiningen installed and available on PATH
+1. Start Postgres
 
-Install dependencies
+```bash
+docker compose up -d db
+```
 
-- lein deps
+2. Prepare backend deps and database
 
-Run migrations
+```bash
+lein deps
+lein migratus migrate
+lein db:seed
+```
 
-- lein migratus migrate
+3. Start the web server (REPL-based dev)
 
-Run seed
+```bash
+lein repl
+;; In the REPL, evaluate:
+(require '[ring.adapter.jetty :as jetty] '[notif-test.web :as web])
+(def server (jetty/run-jetty web/app {:port 3000 :join? false}))
+;; When done: (.stop server)
+```
 
-- lein run -m notif-test.db.seed
+### Terminal 2 – Frontend watcher
 
-Start the web server
-Option 1: From a REPL (recommended for dev)
+1. Install and start Shadow-CLJS watcher
 
-1. lein repl
-2. In the REPL, start Jetty with the Ring handler:
-   (require 'ring.adapter.jetty)
-   (require 'notif-test.web)
-   (def server (ring.adapter.jetty/run-jetty notif-test.web/app {:port 3000 :join? false}))
-3. Open http://localhost:3000 to access the form and log history.
-4. To stop the server: (.stop server)
+```bash
+npm install
+npm run start
+```
 
-Option 2: Quick one-liner from REPL
+Open the app
 
-- lein repl
-  Then paste:
-  (do (require 'ring.adapter.jetty 'notif-test.web)
-  (ring.adapter.jetty/run-jetty notif-test.web/app {:port 3000}))
+- http://localhost:3000 (served by the backend; Shadow-CLJS watcher will output to `resources/public/js`)
 
-Run tests
+Extras
 
-- lein test
+- Run tests: `lein test`
+- Production build (optimized JS): `npm run release`
+
+Notes
+
+- Default development uses Postgres-backed repositories for users and messages (logs remain in-memory).
+- Default DATABASE_URL: jdbc:postgresql://localhost:5432/notif_test?user=notif&password=secret
+- If you already have Postgres running locally, you can skip Docker; ensure DATABASE_URL matches.
+- shadow-cljs.edn config includes :dev-http {3001 {:root "resources/public"}}.
+- You can open http://localhost:3001/index.html for static hosting, but API calls to /api will target 3001. Prefer using the backend at 3000 for full functionality.
+
 
 Key entry points
 

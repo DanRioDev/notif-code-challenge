@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notification Test</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" />
+  </head>
+  <body>
+    <section class="section">
+      <div class="container">
+        <h1 class="title">Notification Test</h1>
+        <div class="box">
+          <form id="notify-form">
+            <div class="field">
+              <label class="label">Category</label>
+              <div class="control">
+                <div class="select">
+                  <select id="category">
+                    <option value="sports">Sports</option>
+                    <option value="finance">Finance</option>
+                    <option value="movies">Movies</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Message</label>
+              <div class="control">
+                <textarea class="textarea" id="message" placeholder="Type your message"></textarea>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="control">
+                <button class="button is-primary" type="submit">Send</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <h2 class="subtitle">Log history</h2>
+        <ul id="logs"></ul>
+      </div>
+    </section>
+
+    <script src="/js/main.js"></script>
+  </body>
+</html>
+

@@ -1,88 +1,78 @@
 (ns notif-test.web
-  (:require
-   [cheshire.core :as json]
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [reitit.ring :as ring]
-   [hiccup.page :as page]
-   [notif-test.domain.models :as m]
-   [notif-test.repository.memory :as mem]
-   [notif-test.repository.protocols :as p]
-   [notif-test.service.notification-service :as svc]
-   [notif-test.notification.channels :as ch]
-   [ring.util.response :as resp]))
+  (:require [reitit.ring :as ring]
+            [ring.util.response :as resp]
+            [cheshire.core :as json]
+            [clojure.string :as str]
+            [notif-test.config :as config]
+            [notif-test.repository.postgres :as pg]
+            [notif-test.repository.memory :as mem]
+            [notif-test.repository.protocols :as p]
+            [notif-test.service.notification-service :as svc]))
 
-;; Inversion of dependencies: wire repositories here
-(defonce users (mem/users-repo))
-(defonce messages (mem/messages-repo))
-(defonce logs (mem/logs-repo))
-(defonce notifiers {:sms (ch/->SMSNotifier)
-                    :email (ch/->EmailNotifier)
-                    :push (ch/->PushNotifier)})
-(defonce deps {:users users :messages messages :logs logs :notifiers notifiers})
+;; Simple JSON helpers
+(defn- json-response
+  ([data] (json-response data 200))
+  ([data status]
+   (-> (resp/response (json/generate-string data))
+       (resp/status status)
+       (resp/header "Content-Type" "application/json; charset=utf-8"))))
 
-(defn layout [title & body]
-  (page/html5
-   [:head
-    [:meta {:charset "utf-8"}]
-    [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
-    [:title title]
-    (page/include-css "https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css")]
-   [:body
-    [:section.section
-     [:div.container
-      body]]
-    (page/include-js "https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js")
-    [:script {:type "text/javascript"}
-     "async function submitForm(e){e.preventDefault(); const cat = document.getElementById('category').value; const msg=document.getElementById('message').value; if(!msg.trim()){alert('Message cannot be empty'); return;} const res=await fetch('/api/messages',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({category: cat, messageBody: msg})}); if(res.ok){document.getElementById('message').value=''; await loadLogs();} else {const t=await res.text(); alert('Error: '+t);} } async function loadLogs(){ const res=await fetch('/api/logs'); const data=await res.json(); const container=document.getElementById('logs'); container.innerHTML=''; for(const row of data){ const li=document.createElement('li'); li.textContent = `[${row.timestamp}] msg#${row.message_id} ${row.category} -> user#${row.user.id} via ${row.channel} => ${row.notification_status}`; container.appendChild(li);} } window.addEventListener('load', loadLogs);"]]))
+(defn- parse-json-body [req]
+  (when-let [body (:body req)]
+    (let [s (slurp body)]
+      (when (not (str/blank? s))
+        (json/parse-string s true)))))
 
-(defn home-page []
-  (layout "Notification Test"
-          [:h1.title "Notification Test"]
-          [:div.box
-           [:form {:onSubmit "submitForm(event)"}
-            [:div.field
-             [:label.label "Category"]
-             [:div.control
-              [:div.select
-               [:select {:id "category"}
-                (for [c (sort m/categories)]
-                  [:option {:value (name c)} (str/capitalize (name c))])]]]]
-            [:div.field
-             [:label.label "Message"]
-             [:div.control
-              [:textarea.textarea {:id "message" :placeholder "Type your message"}]]]
-            [:div.field
-             [:div.control
-              [:button.button.is-primary {:type "submit"} "Send"]]]]]
-          [:h2.subtitle "Log history"]
-          [:ul#logs]))
+;; In-memory application dependencies for dev usage
+(defonce !deps
+  (atom (let [ds (config/datasource)]
+          {:users (pg/users-repo ds)
+           :messages (pg/messages-repo ds)
+           :logs (mem/logs-repo)
+           ;; optional notifier registry; service will fallback to channel registry
+           :notifiers nil})))
 
-(defn json-response [data]
-  (-> (resp/response (json/encode data))
-      (resp/content-type "application/json")))
+(defn- handle-index [_]
+  ;; Serve the SPA index from resources/public
+  (or (resp/resource-response "index.html" {:root "public"})
+      (-> (resp/response "Not found") (resp/status 404))))
+
+(defn- handle-get-logs [_]
+  (let [{:keys [logs]} @!deps
+        items (p/all-logs logs)]
+    (json-response items)))
+
+(defn- handle-post-message [req]
+  (try
+    (let [body (or (parse-json-body req) {})
+          ;; accept either :message-body or camelCase :messageBody
+          message-body (or (:message-body body) (:messageBody body))
+          ;; accept keyword or string category
+          category (let [c (:category body)]
+                     (cond
+                       (keyword? c) c
+                       (string? c) (keyword c)
+                       :else c))
+          result (svc/submit-message! @!deps {:category category :message-body message-body})]
+      (json-response result))
+    (catch clojure.lang.ExceptionInfo e
+      (json-response {:error (.getMessage e)
+                      :data (ex-data e)} 400))
+    (catch Throwable t
+      (json-response {:error (.getMessage t)} 500))))
+
+(def router
+  (ring/router
+   [["/" {:get handle-index}]
+    ["/api"
+     ["/logs" {:get handle-get-logs}]
+     ["/messages" {:post handle-post-message}]]]))
 
 (def app
-  (let [router
-        (ring/router
-         [["/" {:get (fn [_] (resp/response (home-page)))}]
-          ["/api/logs" {:get (fn [_]
-                               (json-response (map (fn [l]
-                                                     (-> l
-                                                         (update :timestamp str)
-                                                         (set/rename-keys {:message-id :message_id
-                                                                           :notification-status :notification_status})))
-                                                   (p/all-logs logs))))}]
-          ["/api/messages" {:post (fn [{:keys [body]}]
-                                    (try
-                                      (let [data (json/decode (slurp body) keyword)
-                                            {:keys [category messageBody]} data
-                                            category-kw (keyword (str/lower-case (name category)))
-                                            result (svc/submit-message! deps {:category category-kw :message-body messageBody})]
-                                        (json-response result))
-                                      (catch Exception e
-                                        (-> (resp/response (str (.getMessage e)))
-                                            (resp/status 400)))))}]])]
-    (ring/ring-handler router
-                       (constantly (-> (resp/response "Not found") (resp/status 404))))))
+  ;; Provide static file serving and sensible defaults for non-matched routes
+  (ring/ring-handler
+   router
+   (ring/routes
+    (ring/create-resource-handler {:path "/"})
+    (ring/create-default-handler))))
 

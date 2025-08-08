@@ -26,10 +26,12 @@
     (is (thrown? Exception (svc/submit-message! deps {:category :sports :message-body "  "})))))
 
 (deftest filter-by-subscription
-  (let [deps (fresh-deps)
-        targeted-users (->> (p/all-logs (:logs deps)) (map (comp :id :user)) set)]
-    ;; Seed users subscribed to movies: Bob(id 2), Carol(id 3)
-    (is (= targeted-users #{2 3}))))
+  (let [deps (fresh-deps)]
+    ;; Submit a movies message so logs capture targeted users
+    (svc/submit-message! deps {:category :movies :message-body "Test"})
+    (let [targeted-users (->> (p/all-logs (:logs deps)) (map (comp :id :user)) set)]
+      ;; Seed users subscribed to movies: Bob(id 2), Carol(id 3)
+      (is (= targeted-users #{2 3})))))
 
 (deftest channel-failure-retry
   (let [deps (fresh-deps)
