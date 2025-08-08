@@ -28,7 +28,7 @@
   (atom (let [ds (config/datasource)]
           {:users (pg/users-repo ds)
            :messages (pg/messages-repo ds)
-           :logs (mem/logs-repo)
+           :logs (pg/logs-repo ds)
            ;; optional notifier registry; service will fallback to channel registry
            :notifiers nil})))
 

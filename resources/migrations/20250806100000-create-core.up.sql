@@ -1,6 +1,6 @@
 -- Create core tables for notif-test
 CREATE TABLE IF NOT EXISTS users (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   email TEXT UNIQUE,
   phone TEXT,
@@ -9,16 +9,16 @@ CREATE TABLE IF NOT EXISTS users (
 );
 --;;
 CREATE TABLE IF NOT EXISTS messages (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   category TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 --;;
 CREATE TABLE IF NOT EXISTS notification_logs (
-  id BIGSERIAL PRIMARY KEY,
-  message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
   channel TEXT NOT NULL,
   status TEXT NOT NULL,
   error TEXT,

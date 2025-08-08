@@ -21,10 +21,12 @@
     {:status :success :info (str "Push to user#" (:id user) ": " message-body) :error nil})
   (channel-type [_] :push))
 
-(defn notifier-for [channel]
+(defn notifier-for
+  "Return a notifier instance for the given channel, or nil if unsupported."
+  [channel]
   (case channel
     :sms (->SMSNotifier)
     :email (->EmailNotifier)
     :push (->PushNotifier)
-    (throw (ex-info "Unsupported channel" {:channel channel}))))
+    nil))
 

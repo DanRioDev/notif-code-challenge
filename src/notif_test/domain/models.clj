@@ -12,7 +12,7 @@
   (and (string? s) (not (str/blank? s))))
 
 ;; Specs
-(s/def ::id pos-int?)
+(s/def ::id uuid?)
 (s/def ::log-id uuid?)
 (s/def ::name non-blank-string?)
 (s/def ::email (s/and non-blank-string? #(str/includes? % "@")))
@@ -21,25 +21,27 @@
 (s/def ::channel channels)
 
 (s/def ::subscribed (s/coll-of ::category :min-count 0 :kind vector? :distinct true))
-(s/def ::preferred-channels (s/coll-of ::channel :min-count 1 :kind vector? :distinct true))
+(s/def ::preferred-channels (s/coll-of ::channel :min-count 0 :kind vector? :distinct true))
 
 (s/def ::user
   (s/keys :req-un [::id ::name ::email ::phone ::subscribed ::preferred-channels]))
 
-(s/def ::message-id pos-int?)
+(s/def ::message-id uuid?)
+(s/def ::user-id uuid?)
 (s/def ::message-category ::category)
 (s/def ::message-body non-blank-string?)
 
 (s/def ::message
-  (s/keys :req-un [::message-id ::message-category ::message-body]))
+  (s/keys :req-un [::message-category ::message-body]
+          :opt-un [::message-id ::user-id]))
 
 (s/def ::timestamp inst?)
 (s/def ::notification-status #{:success :failed})
 (s/def ::error (s/nilable non-blank-string?))
 
 (s/def ::notification-log
-  (s/keys :req-un [::log-id ::message-id ::category ::channel ::user ::timestamp ::notification-status]
-          :opt-un [::error]))
+  (s/keys :req-un [::message-id ::channel ::timestamp ::notification-status]
+          :opt-un [::log-id ::error ::category ::user]))
 
 ;; Constructors with validation
 (defn validate!

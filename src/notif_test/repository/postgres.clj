@@ -53,7 +53,7 @@
     (when-let [row (jdbc/execute-one! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE id = ?" id])]
       (row->user row)))
   (users-subscribed-to [_ category]
-    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE ? = ANY(subscribed_categories)" (name category)])]
+    (let [rows (jdbc/execute! ds ["SELECT id, name, email, phone, subscribed_categories, preferred_channels FROM users WHERE subscribed_categories @> ARRAY[?]::text[]" (name category)])]
       (map row->user rows))))
 
 (defn users-repo [ds]
@@ -64,13 +64,13 @@
   repo/MessageRepository
   (next-id [_]
     (-> (jdbc/execute-one! ds ["SELECT nextval('messages_id_seq') AS id"]) :id))
-  (save-message [_ {:keys [message-id message-category message-body] :as message}]
+  (save-message [_ {:keys [message-id message-category message-body]}]
     (let [row (cond-> {:category (name message-category)
                        :content message-body}
-                message-id (assoc :id message-id))]
-      (sql/insert! ds :messages row {:return-keys true})
-      ;; Return the domain-shaped message we were asked to save
-      message))
+                message-id (assoc :id message-id))
+          inserted (sql/insert! ds :messages row {:return-keys true})]
+      ;; Return the domain-shaped message with the generated UUID
+      (row->message inserted)))
   (all-messages [_]
     (->> (jdbc/execute! ds ["SELECT id, category, content FROM messages ORDER BY id DESC"])
          (map row->message)
@@ -82,17 +82,17 @@
 ;; Notification Logs Repository
 (defrecord PostgresLogs [ds]
   repo/NotificationLogRepository
-  (append-log [_ {:keys [message_id channel status error]}]
-    (let [row {:message_id message_id
+  (append-log [_ {:keys [message-id channel notification-status error]}]
+    (let [row {:message_id message-id
                :channel (name channel)
-               :status (name status)
+               :status (name notification-status)
                :error error}]
       (sql/insert! ds :notification_logs row {:return-keys true})))
   (all-logs [_]
-    (let [rows (jdbc/execute! ds ["SELECT id, message_id, channel, status, error, created_at FROM notification_logs ORDER BY id DESC"])]
+    (let [rows (jdbc/execute! ds ["SELECT * FROM notification_logs ORDER BY id DESC"])]
       (map (fn [r] (-> r (update :channel ->kw) (update :status ->kw))) rows)))
   (logs-by-message [_ message-id]
-    (let [rows (jdbc/execute! ds ["SELECT id, message_id, channel, status, error, created_at FROM notification_logs WHERE message_id = ? ORDER BY id DESC" message-id])]
+    (let [rows (jdbc/execute! ds ["SELECT * FROM notification_logs WHERE message_id = ? ORDER BY id DESC" message-id])]
       (map (fn [r] (-> r (update :channel ->kw) (update :status ->kw))) rows))))
 
 (defn logs-repo [ds]

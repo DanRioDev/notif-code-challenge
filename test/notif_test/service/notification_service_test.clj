@@ -14,7 +14,7 @@
 (deftest submit-message-happy-path
   (let [deps (fresh-deps)
         res (svc/submit-message! deps {:category :sports :message-body "Hello"})]
-    (is (= 1 (:message-id (:message res))))
+    (is (uuid? (:message-id (:message res))))
     (is (seq (:results res)))
     (is (every? #(= :success (:status %)) (:results res)))
     (is (> (count (p/all-logs (:logs deps))) 0))))
@@ -29,9 +29,9 @@
   (let [deps (fresh-deps)]
     ;; Submit a movies message so logs capture targeted users
     (svc/submit-message! deps {:category :movies :message-body "Test"})
-    (let [targeted-users (->> (p/all-logs (:logs deps)) (map (comp :id :user)) set)]
-      ;; Seed users subscribed to movies: Bob(id 2), Carol(id 3)
-      (is (= targeted-users #{2 3})))))
+    (let [targeted-names (->> (p/all-logs (:logs deps)) (map (comp :name :user)) set)]
+      ;; Seed users subscribed to movies: Bob, Carol
+      (is (= targeted-names #{"Bob" "Carol"})))))
 
 (deftest channel-failure-retry
   (let [deps (fresh-deps)

@@ -33,9 +33,7 @@
   (when-not (m/non-blank-string? message-body)
     (throw (ex-info "Message body must be non-empty" {})))
   ;; Create and store message
-  (let [id (repo/next-id messages)
-        message (m/->Message {:message-id id :message-category category :message-body message-body})
-        _ (repo/save-message messages message)
+  (let [message (repo/save-message messages (m/->Message {:message-category category :message-body message-body}))
         subs (repo/users-subscribed-to users category)
         results (transient [])]
     (doseq [user subs
@@ -48,8 +46,7 @@
                         {:status :failed :info "unsupported-channel" :error "Unsupported channel"}
                         (try-send notifier user message))
             status (:status send-resp)
-            log (m/->NotificationLog {:log-id (java.util.UUID/randomUUID)
-                                      :message-id (:message-id message)
+            log (m/->NotificationLog {:message-id (:message-id message)
                                       :category category
                                       :channel channel
                                       :user user

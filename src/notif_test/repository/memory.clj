@@ -14,6 +14,16 @@
    {:id 4 :name "Dave" :email "dave@example.com" :phone "+15550000004"
     :subscribed [:finance] :preferred-channels [:sms]}])
 
+(defn- ensure-user-uuids
+  "Ensure each user has a UUID :id; if not, generate one."
+  [users]
+  (map (fn [u]
+         (let [id (:id u)]
+           (if (uuid? id)
+             u
+             (assoc u :id (java.util.UUID/randomUUID)))))
+       users))
+
 (defn- validate-users [users]
   (mapv m/->User users))
 
@@ -29,7 +39,7 @@
 (defn users-repo
   ([] (users-repo seed-users))
   ([users]
-   (->InMemoryUsers (atom (validate-users users)))))
+   (->InMemoryUsers (atom (-> users ensure-user-uuids validate-users)))))
 
 (defrecord InMemoryMessages [!next-id !messages]
   p/MessageRepository
@@ -37,9 +47,13 @@
     (let [id @!next-id]
       (swap! !next-id inc)
       id))
-  (save-message [_ message]
-    (swap! !messages conj message)
-    message)
+  (save-message [_ {:keys [message-id message-category message-body]}]
+    (let [id (or message-id (java.util.UUID/randomUUID))
+          final {:message-id id
+                 :message-category message-category
+                 :message-body message-body}]
+      (swap! !messages conj final)
+      final))
   (all-messages [_] @!messages))
 
 (defn messages-repo []
@@ -48,8 +62,9 @@
 (defrecord InMemoryLogs [!logs]
   p/NotificationLogRepository
   (append-log [_ log]
-    (swap! !logs conj log)
-    log)
+    (let [with-id (if (:id log) log (assoc log :id (java.util.UUID/randomUUID)))]
+      (swap! !logs conj with-id)
+      with-id))
   (all-logs [_] (->> @!logs (sort-by :timestamp) (reverse)))
   (logs-by-message [_ message-id]
     (filter #(= (:message-id %) message-id) @!logs)))
