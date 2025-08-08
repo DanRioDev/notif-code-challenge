@@ -42,3 +42,60 @@
       (let [res (svc/submit-message! deps {:category :finance :message-body "$"})]
         (is (every? #(= :failed (:status %)) (:results res)))))))
 
+(deftest unsupported-channel-handled
+  ;; Use a valid user but make notifier lookup throw Unsupported channel
+  (let [users (reify p/UserRepository
+                (all-users [_] [])
+                (find-user [_ _] nil)
+                (users-subscribed-to [_ _]
+                  [{:id 999 :name "X" :email "x@ex" :phone "+10000001"
+                    :subscribed [:sports] :preferred-channels [:email]}]))
+        deps {:users users :messages (mem/messages-repo) :logs (mem/logs-repo)}]
+    (with-redefs [ch/notifier-for (fn [_] (throw (ex-info "Unsupported channel" {:channel :email})))]
+      (let [res (svc/submit-message! deps {:category :sports :message-body "Hi"})]
+        (is (= 1 (count (:results res))))
+        (is (= :failed (:status (first (:results res)))))
+        ;; log error captured
+        (let [logs (p/all-logs (:logs deps))]
+          (is (= 1 (count logs)))
+          (is (= "Unsupported channel" (:error (first logs)))))))))
+
+(deftest no-subscribers-yields-no-results
+  (let [users (reify p/UserRepository
+                (all-users [_] [])
+                (find-user [_ _] nil)
+                (users-subscribed-to [_ _] []))
+        deps {:users users :messages (mem/messages-repo) :logs (mem/logs-repo)}
+        res (svc/submit-message! deps {:category :movies :message-body "Hi"})]
+    (is (empty? (:results res)))
+    (is (empty? (p/all-logs (:logs deps))))))
+
+(deftest very-long-message-body
+  (let [deps (fresh-deps)
+        long-msg (apply str (repeat 50000 "x"))
+        res (svc/submit-message! deps {:category :sports :message-body long-msg})]
+    (is (= (:message-body (:message res)) long-msg))
+    (is (seq (:results res)))))
+
+(deftest retry-stops-at-max
+  ;; Custom users repo with a single user/channel to make assertions deterministic
+  (let [users (reify p/UserRepository
+                (all-users [_] [])
+                (find-user [_ _] nil)
+                (users-subscribed-to [_ _]
+                  [{:id 1 :name "Y" :email "y@ex" :phone "+10000002"
+                    :subscribed [:finance] :preferred-channels [:sms]}]))
+        deps {:users users :messages (mem/messages-repo) :logs (mem/logs-repo)}
+        calls (atom 0)
+        failing (reify proto/Notifier
+                  (send! [_ _ _] (swap! calls inc) {:status :failed :info "fail" :error "timeout"})
+                  (channel-type [_] :sms))
+        sleeps (atom 0)]
+    (with-redefs [ch/notifier-for (fn [_] failing)
+                  notif-test.service.notification-service/pause-ms (fn [_] (swap! sleeps inc))]
+      (let [_ (svc/submit-message! deps {:category :finance :message-body "retry"})]
+        ;; For max-retries=2, we should sleep exactly 2 times
+        (is (= 2 @sleeps))
+        ;; send! should have been invoked 3 times (attempts 0,1,2)
+        (is (>= @calls 3))))))
+

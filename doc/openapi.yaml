@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: notif-test API
+  version: 0.1.0
+  description: API for submitting messages and fetching notification logs.
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/messages:
+    post:
+      summary: Submit a message for a category
+      description: |
+        Submits a message to be delivered to users subscribed to the given category, via their preferred channels.
+        In async mode (SEND_ASYNC=true), the request is enqueued and 202 is returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/MessageSubmitCamel'
+                - $ref: '#/components/schemas/MessageSubmitKebab'
+      responses:
+        '200':
+          description: Submission accepted and processed synchronously
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageSubmitResponse'
+        '202':
+          description: Enqueued for async processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [enqueued]
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/logs:
+    get:
+      summary: Fetch notification logs
+      responses:
+        '200':
+          description: List of logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogItem'
+components:
+  schemas:
+    MessageSubmitCamel:
+      type: object
+      required: [category, messageBody]
+      properties:
+        category:
+          type: string
+          enum: [sports, finance, movies]
+        messageBody:
+          type: string
+          minLength: 1
+    MessageSubmitKebab:
+      type: object
+      required: [category, message-body]
+      properties:
+        category:
+          type: string
+          enum: [sports, finance, movies]
+        message-body:
+          type: string
+          minLength: 1
+    Message:
+      type: object
+      properties:
+        message-id:
+          type: integer
+        message-category:
+          type: string
+          enum: [sports, finance, movies]
+        message-body:
+          type: string
+    ResultItem:
+      type: object
+      properties:
+        user-id:
+          type: integer
+        channel:
+          type: string
+          enum: [sms, email, push]
+        status:
+          type: string
+          enum: [success, failed]
+        log-id:
+          type: integer
+    MessageSubmitResponse:
+      type: object
+      properties:
+        message:
+          $ref: '#/components/schemas/Message'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResultItem'
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        data:
+          nullable: true
+          description: Additional error context when available
+    LogItem:
+      type: object
+      description: Shape varies by backend. For Postgres, includes DB fields; memory backend may differ.
+      properties:
+        id:
+          type: integer
+          nullable: true
+        message_id:
+          type: integer
+          nullable: true
+        channel:
+          type: string
+          enum: [sms, email, push]
+          nullable: true
+        status:
+          type: string
+          enum: [success, failed]
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+
